@@ -548,7 +548,7 @@ function selectNode(floor,ni){
 
 function advanceFloor(){
   state.currentFloor++;
-  if(state.currentFloor>=state.map.length){showVictory();return}
+  if(state.currentFloor>=state.map.length){showGameClear();return}
   showMap();
 }
 
