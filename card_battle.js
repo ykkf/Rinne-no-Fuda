@@ -109,9 +109,29 @@ function removeWhiteBg(src,targetSelector){
   };
   img.src=src;
 }
+
+// ============================================================
+// SE（効果音）管理
+// ============================================================
+const SE={
+  vols:{card:0.5, hit:0.5, damage:0.5, click:0.3, turn:0.4},
+  play:function(name, delay=0){
+    setTimeout(()=>{
+      const a=new Audio(`se/${name}.mp3`);
+      a.volume=this.vols[name]||0.5;
+      a.play().catch(e=>console.log('Audio disabled/missing:',e));
+    }, delay);
+  }
+};
+document.addEventListener('click', e=>{
+  if(e.target.closest('.obtn') || e.target.closest('#end-turn-btn')) SE.play('click');
+  if(e.target.closest('.card') && state.gamePhase==='battle') SE.play('card');
+  if(e.target.closest('.reward-card')) SE.play('card');
+});
+
 window.addEventListener('load',()=>{
-  removeWhiteBg('player_sd.png','.char-player');
-  removeWhiteBg('player_stand.png','.char-stand');
+  removeWhiteBg('images/player_sd.png','.char-player');
+  removeWhiteBg('images/player_stand.png','.char-stand');
 });
 // ============================================================
 // 演出システム
@@ -141,20 +161,41 @@ function playerAttackAnim(){
   const c=el('p-char');if(!c) return;
   c.classList.remove('char-attack');void c.offsetWidth;
   c.classList.add('char-attack');
-  // 溜め後の打撃タイミングで斬撃線を出す
-  setTimeout(()=>showSlashFX(),220);
+  // 溜め後の打撃タイミングでエフェクトとSE
+  setTimeout(()=>{
+    showSlashFX();
+    triggerHitStop();
+    triggerScreenShake();
+    SE.play('hit');
+  }, 220);
   setTimeout(()=>{c.classList.remove('char-attack')},550);
 }
 function playerHitAnim(){
   const c=el('p-char');if(!c) return;
   c.classList.remove('char-hit');void c.offsetWidth;
   c.classList.add('char-hit');
-  // ヒットストップ: 一瞬操作不能にして重さを演出
+  
+  triggerHitStop();
+  triggerScreenShake();
+  SE.play('damage');
+
   setBtnState(false);
   setTimeout(()=>{if(state.isPlayerTurn)setBtnState(true)},150);
-  // スパーク
   showSparkFX('p-unit');
   setTimeout(()=>{c.classList.remove('char-hit')},550);
+}
+
+// ヒットストップ ＆ スクリーンシェイク
+function triggerHitStop(){
+  const app=el('app');if(!app) return;
+  app.style.transform='scale(0.97)';
+  setTimeout(()=>app.style.transform='', 60);
+}
+function triggerScreenShake(){
+  const app=el('app');if(!app) return;
+  app.classList.remove('screen-shake');void app.offsetWidth;
+  app.classList.add('screen-shake');
+  setTimeout(()=>app.classList.remove('screen-shake'), 300);
 }
 
 // 斬撃線エフェクト
@@ -220,13 +261,16 @@ function generateMap(){
     const nodes=[];
     const count=f===total-1?1:2+Math.floor(Math.random()*2);
     for(let n=0;n<count;n++){
-      let type;
-      if(f===total-1) type='boss';
-      else if(f===0) type='battle';
-      else{const r=Math.random();type=r<0.55?'battle':r<0.8?'event':'rest'}
+      let type, bgType;
+      if(f===total-1){ type='boss'; bgType='boss'; }
+      else if(f===0){ type='battle'; bgType='forest'; }
+      else{
+        const r=Math.random();type=r<0.55?'battle':r<0.8?'event':'rest';
+        bgType = (f<3) ? 'forest' : 'cave';
+      }
       const icons={battle:'⚔️',event:'❓',rest:'🏕️',boss:'💀'};
       const labels={battle:'戦闘',event:'イベント',rest:'休憩',boss:'ボス'};
-      nodes.push({type,icon:icons[type],label:labels[type]});
+      nodes.push({type,icon:icons[type],label:labels[type],bg:bgType});
     }
     floors.push(nodes);
   }
@@ -263,7 +307,7 @@ function selectNode(floor,ni){
   if(floor!==state.currentFloor) return;
   const node=state.map[floor][ni];
   switch(node.type){
-    case 'battle':case 'boss':startBattle(node.type==='boss');break;
+    case 'battle':case 'boss':startBattle(node.type==='boss', node.bg);break;
     case 'event':startEvent();break;
     case 'rest':startRest();break;
   }
@@ -362,6 +406,7 @@ function startPlayerTurn(){
   drawHand();state.isPlayerTurn=true;rollEnemyIntent();
   addLog(`── ターン${state.turnCount} ──`);updateBattleUI();
   showTurnBanner(true);
+  SE.play('turn');
 }
 
 function endTurn(){
@@ -389,8 +434,9 @@ function enemyTurn(){
 // ============================================================
 // 戦闘開始 / 終了
 // ============================================================
-function startBattle(isBoss){
+function startBattle(isBoss, bgType){
   state.gamePhase='battle';
+  document.body.style.setProperty('--battle-bg', `url('images/bg_${bgType||'forest'}.png')`);
   document.body.classList.add('battle-bg');
   el('map-view').classList.add('hide');el('battle-view').classList.remove('hide');
   // 敵選択
