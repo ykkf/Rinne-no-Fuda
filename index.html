@@ -22,14 +22,18 @@ body.battle-bg::after{opacity:.35}
 .top-bar .floor{color:var(--accent);font-weight:700}.top-bar .hp-top{color:var(--danger);font-weight:700}
 .top-bar .relics-top{color:var(--defense);font-size:.8rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.2rem}
 
-/* Relic Tooltip */
-#relic-tooltip{position:absolute;background:rgba(15,23,42,.95);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:.6rem .8rem;color:#fff;font-size:.8rem;pointer-events:none;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,.5);backdrop-filter:blur(8px);width:max-content;max-width:250px;opacity:0;transition:opacity .2s cubic-bezier(.34,1.56,.64,1)}
-#relic-tooltip.show{opacity:1}
-#relic-tooltip h3{margin:0 0 .3rem 0;font-size:.9rem;color:var(--accent)}
-#relic-tooltip p{margin:0;color:var(--dim);line-height:1.4}
-#relic-tooltip strong{color:var(--text);font-weight:bold}
+/* Game Tooltip */
+#game-tooltip{position:absolute;background:rgba(15,23,42,.95);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:.6rem .8rem;color:#fff;font-size:.8rem;pointer-events:none;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,.5);backdrop-filter:blur(8px);width:max-content;max-width:250px;opacity:0;transition:opacity .2s cubic-bezier(.34,1.56,.64,1)}
+#game-tooltip.show{opacity:1}
+#game-tooltip h3{margin:0 0 .3rem 0;font-size:.9rem;color:var(--accent)}
+#game-tooltip p{margin:0;color:var(--dim);line-height:1.4}
+#game-tooltip strong{color:var(--text);font-weight:bold}
 .relic-icon{display:inline-block;cursor:help;font-size:1.1rem;padding:.2rem;background:rgba(255,255,255,.05);border-radius:4px;transition:all .2s;pointer-events:auto;user-select:none}
 .relic-icon:hover{background:rgba(255,255,255,.15);transform:translateY(-2px)}
+
+/* Glow Animation */
+.glow-effect{animation:icon-glow 0.6s ease-out}
+@keyframes icon-glow{0%{filter:brightness(1);transform:scale(1);box-shadow:0 0 0 transparent}30%{filter:brightness(2);transform:scale(1.4);box-shadow:0 0 15px var(--accent)}100%{filter:brightness(1);transform:scale(1);box-shadow:0 0 0 transparent}}
 
 /* Map */
 #map-view{flex:1;display:flex;flex-direction:column;align-items:center;gap:.8rem;padding-top:1rem}
@@ -236,9 +240,9 @@ body.battle-bg::after{opacity:.35}
 <div id="battle-view" class="hide">
   <div id="turn-banner" class="turn-banner player-turn hide">あなたのターン</div>
   <div class="field">
-    <div id="p-unit" class="unit"><div id="p-char" class="char-sprite char-player"></div><h2>PLAYER</h2><div class="hp-num" id="p-hp-wrap"><span id="p-hp">50</span><small id="p-hp-max">/50</small><span id="p-block" class="badge badge-block">🛡0</span></div><div class="hp-wrap"><div id="p-bar" class="hp-fill" style="width:100%"></div></div></div>
+    <div id="p-unit" class="unit"><div id="p-char" class="char-sprite char-player"></div><h2>PLAYER</h2><div class="hp-num" id="p-hp-wrap"><span id="p-hp">50</span><small id="p-hp-max">/50</small><span id="p-block" class="badge badge-block" onmouseenter="showGameTooltip(event, 'status', 'block')" onmouseleave="hideGameTooltip()" onclick="toggleGameTooltip(event, 'status', 'block')" style="cursor:help;pointer-events:auto;">🛡0</span></div><div class="hp-wrap"><div id="p-bar" class="hp-fill" style="width:100%"></div></div><div class="status-row"><span id="p-poison" class="badge badge-poison" onmouseenter="showGameTooltip(event, 'status', 'poison')" onmouseleave="hideGameTooltip()" onclick="toggleGameTooltip(event, 'status', 'poison')" style="cursor:help;pointer-events:auto;">☠0</span><span id="p-bleed" class="badge badge-danger" onmouseenter="showGameTooltip(event, 'status', 'bleed')" onmouseleave="hideGameTooltip()" onclick="toggleGameTooltip(event, 'status', 'bleed')" style="cursor:help;pointer-events:auto;">🩸0</span></div></div>
     <div style="font-size:1rem;font-weight:700;color:var(--dim);padding-bottom:.6rem">VS</div>
-    <div id="e-unit" class="unit"><div id="e-icon" style="font-size:2.5rem;min-height:80px;display:flex;align-items:center;justify-content:center"></div><h2 style="color:var(--danger)" id="e-name">ENEMY</h2><div class="hp-num"><span id="e-hp">40</span><small id="e-hp-max">/40</small></div><div class="hp-wrap"><div id="e-bar" class="hp-fill" style="width:100%"></div></div><div class="status-row"><span id="e-poison" class="badge badge-poison">☠0</span><span id="e-weak" class="badge badge-weak">💫0</span></div><div class="enemy-intent" id="e-intent"></div></div>
+    <div id="e-unit" class="unit"><div id="e-icon" style="font-size:2.5rem;min-height:80px;display:flex;align-items:center;justify-content:center"></div><h2 style="color:var(--danger)" id="e-name">ENEMY</h2><div class="hp-num"><span id="e-hp">40</span><small id="e-hp-max">/40</small></div><div class="hp-wrap"><div id="e-bar" class="hp-fill" style="width:100%"></div></div><div class="status-row"><span id="e-poison" class="badge badge-poison" onmouseenter="showGameTooltip(event, 'status', 'poison')" onmouseleave="hideGameTooltip()" onclick="toggleGameTooltip(event, 'status', 'poison')" style="cursor:help;pointer-events:auto;">☠0</span><span id="e-weak" class="badge badge-weak" onmouseenter="showGameTooltip(event, 'status', 'weak')" onmouseleave="hideGameTooltip()" onclick="toggleGameTooltip(event, 'status', 'weak')" style="cursor:help;pointer-events:auto;">💫0</span></div><div class="enemy-intent" id="e-intent"></div></div>
   </div>
   <div class="info-bar"><div class="energy">⚡ <span id="nrg-pips"></span></div><div class="pile">山札 <span id="draw-c">0</span> ｜ 捨て <span id="disc-c">0</span></div></div>
   <div id="log"></div>
@@ -247,7 +251,7 @@ body.battle-bg::after{opacity:.35}
 </div>
 </div>
 <div id="overlay"></div>
-<div id="relic-tooltip" class="hide"></div>
+<div id="game-tooltip" class="hide"></div>
 <script src="card_battle.js"></script>
 </body>
 </html>
