@@ -354,27 +354,94 @@ function applyPassiveRelics(){
 // ============================================================
 function generateMap(){
   const floors=[];
-  for(let f=0;f<6;f++){
+  const totalFloors = 10;
+  
+  const pickType = (weights) => {
+    let total = Object.keys(weights).reduce((a,k)=>a+weights[k], 0);
+    let r = Math.random() * total;
+    for(let k in weights){ r -= weights[k]; if(r <= 0) return k; }
+    return 'battle';
+  };
+
+  for(let f=0; f<totalFloors; f++){
     const nodes=[];
-    let bgType = (f<3) ? 'forest' : 'cave';
-    if(f===0){ nodes.push({type:'battle',icon:'⚔️',label:'入口',bg:'forest'}); }
-    else if(f===1){
-      nodes.push({type:'rest',icon:'🏕️',label:'左(安定)',bg:bgType});
-      nodes.push({type:'elite',icon:'👹',label:'右(危険)',bg:bgType});
+    let nodeCount = 3;
+    if(f===0 || f===totalFloors-1) nodeCount = 1;
+    else if(f===4 || f===8) nodeCount = 2;
+    else nodeCount = Math.random()>0.5 ? 2 : 3;
+
+    for(let i=0; i<nodeCount; i++){
+      nodes.push({ id: f+'-'+i, type:'', icon:'', label:'', next:[] });
     }
-    else if(f===2){
-      nodes.push({type:'event',icon:'❓',label:'左(安定)',bg:bgType});
-      nodes.push({type:'elite',icon:'👹',label:'右(危険)',bg:bgType});
-    }
-    else if(f===3){
-      const isElite = state.activeAscension >= 1;
-      nodes.push({type:(isElite?'elite':'battle'),icon:(isElite?'👹':'⚔️'),label:'左(安定)',bg:bgType});
-      nodes.push({type:'event',icon:'❓',label:'右(危険)',bg:bgType});
-    }
-    else if(f===4){ nodes.push({type:'rest',icon:'🏕️',label:'休憩',bg:bgType}); }
-    else if(f===5){ nodes.push({type:'boss',icon:'💀',label:'ボス',bg:'boss'}); }
     floors.push(nodes);
   }
+  
+  for(let f=0; f<totalFloors-1; f++){
+    const curNodes = floors[f];
+    const nextNodes = floors[f+1];
+    curNodes.forEach(n => n.next = []);
+    
+    if(curNodes.length === 1){
+      nextNodes.forEach((_, ni) => curNodes[0].next.push(ni));
+    } else if(nextNodes.length === 1){
+      curNodes.forEach(n => n.next.push(0));
+    } else {
+      if(curNodes.length === 2 && nextNodes.length === 2){
+        curNodes[0].next.push(0); curNodes[1].next.push(1);
+        if(Math.random()>0.5) curNodes[0].next.push(1);
+        if(Math.random()>0.5) curNodes[1].next.push(0);
+      } else if(curNodes.length === 2 && nextNodes.length === 3){
+        curNodes[0].next.push(0, 1); curNodes[1].next.push(1, 2);
+      } else if(curNodes.length === 3 && nextNodes.length === 2){
+        curNodes[0].next.push(0); curNodes[1].next.push(0, 1); curNodes[2].next.push(1);
+      } else if(curNodes.length === 3 && nextNodes.length === 3){
+        curNodes[0].next.push(0); curNodes[1].next.push(1); curNodes[2].next.push(2);
+        if(Math.random()>0.5) curNodes[0].next.push(1);
+        if(Math.random()>0.5) curNodes[1].next.push(0, 2);
+        if(Math.random()>0.5) curNodes[2].next.push(1);
+      }
+    }
+    // duplicate remove
+    curNodes.forEach(n => n.next = [...new Set(n.next)]);
+  }
+
+  const asc = state.activeAscension || 0;
+  for(let f=0; f<totalFloors; f++){
+    let bgType = (f<5) ? 'forest' : 'cave';
+    floors[f].forEach((n, ni) => {
+      n.bg = bgType;
+      if(f===0) { n.type='battle'; n.icon='⚔️'; n.label='入口'; }
+      else if(f===totalFloors-1) { n.type='boss'; n.icon='💀'; n.label='ボス'; n.bg='boss'; }
+      else if(f===4 || f===8) { 
+        if(Math.random()>0.3) { n.type='rest'; n.icon='🏕️'; n.label='休憩所'; }
+        else { n.type='treasure'; n.icon='🧰'; n.label='宝箱'; }
+      }
+      else {
+        let weights = { battle:50, event:30, elite:15, rest:5 };
+        if(asc >= 1) weights.elite = 25;
+        if(f===1) weights.elite = 0; // f1 no elite
+        
+        let type = pickType(weights);
+        n.type = type;
+        if(type==='battle'){ n.icon='⚔️'; n.label='戦闘'; }
+        else if(type==='event'){ n.icon='❓'; n.label='謎'; }
+        else if(type==='elite'){ n.icon='👹'; n.label='強敵'; }
+        else if(type==='rest'){ n.icon='🏕️'; n.label='休憩'; }
+      }
+    });
+  }
+  
+  for(let f=1; f<totalFloors; f++){
+    floors[f].forEach((n, ni) => {
+      if(n.type==='elite'){
+        let parents = floors[f-1].filter((p) => p.next.includes(ni));
+        if(parents.some(p => p.type==='elite')){
+          n.type='battle'; n.icon='⚔️'; n.label='戦闘';
+        }
+      }
+    });
+  }
+
   return floors;
 }
 
@@ -387,31 +454,95 @@ function showMap(){
   el('battle-view').classList.add('hide');
   const mv=el('map-view');mv.classList.remove('hide');
   mv.innerHTML='<div class="map-title">🗺️ ダンジョンマップ</div>';
-  for(let f=0;f<state.map.length;f++){
-    if(f>0) mv.innerHTML+='<div class="map-connector"></div>';
-    let row='<div class="map-floor"><div class="fl-label">'+(f===state.map.length-1?'BOSS':'F'+(f+1))+'</div>';
+  
+  let h = '<div class="map-container" style="position:relative; padding-bottom: 50px;">';
+  
+  for(let f=state.map.length-1; f>=0; f--){
+    if(f<state.map.length-1) h += '<div class="map-connector-space" style="height:40px;"></div>';
+    let row=`<div class="map-floor" id="floor-${f}"><div class="fl-label">${(f===state.map.length-1?'BOSS':'F'+(f+1))}</div>`;
     state.map[f].forEach((node,ni)=>{
       const done=f<state.currentFloor;
       const current=f===state.currentFloor;
-      const locked=f>state.currentFloor;
+      
+      let clickable = false;
+      if(current){
+        if(f===0) clickable = true;
+        else if(state.map[f-1][state.currentNode].next.includes(ni)) clickable = true;
+      }
+      
       let cls='map-node';
-      if(done) cls+=' done';else if(current) cls+=' current';else if(locked) cls+=' locked';
+      if(done){
+        cls+=' done';
+        if(state.pathHistory[f] === ni) cls+=' current-path';
+      }
+      else if(current && clickable) cls+=' current';
+      else if(!clickable) cls+=' locked';
       if(node.type==='elite') cls+=' elite';
-      const click=current?` onclick="selectNode(${f},${ni})"`:''
-      row+=`<div class="${cls}"${click}><div class="n-icon">${node.icon}</div><div class="n-label">${node.label}</div></div>`;
+      
+      const click=clickable?` onclick="selectNode(${f},${ni})"`:''
+      row+=`<div class="${cls}" id="node-${f}-${ni}"${click}><div class="n-icon">${node.icon}</div><div class="n-label">${node.label}</div></div>`;
     });
-    row+='</div>';mv.innerHTML+=row;
+    row+='</div>';h+=row;
   }
+  h += '<svg id="map-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:-1;"></svg>';
+  h += '</div>';
+  mv.innerHTML += h;
   updateTopBar();
+  setTimeout(drawMapLines, 50);
+}
+
+function drawMapLines(){
+  const svg = el('map-svg');
+  if(!svg) return;
+  const container = document.querySelector('.map-container');
+  const cRect = container.getBoundingClientRect();
+  
+  let lines = '';
+  for(let f=0; f<state.map.length-1; f++){
+    state.map[f].forEach((node, ni) => {
+      const elA = el(`node-${f}-${ni}`);
+      if(!elA) return;
+      const rectA = elA.getBoundingClientRect();
+      const xA = rectA.left + rectA.width/2 - cRect.left;
+      const yA = rectA.top + rectA.height/2 - cRect.top;
+      
+      node.next.forEach(nextIdx => {
+        const elB = el(`node-${f+1}-${nextIdx}`);
+        if(!elB) return;
+        const rectB = elB.getBoundingClientRect();
+        const xB = rectB.left + rectB.width/2 - cRect.left;
+        const yB = rectB.top + rectB.height/2 - cRect.top;
+        
+        let color = 'rgba(255,255,255,0.15)';
+        let isPath = state.pathHistory[f] === ni && state.pathHistory[f+1] === nextIdx;
+        let isAvailable = false;
+        
+        if(f === state.currentFloor - 1 && state.currentNode === ni) {
+          color = 'rgba(56, 189, 248, 0.6)';
+          isAvailable = true;
+        } else if (isPath) {
+          color = 'rgba(16, 185, 129, 0.5)';
+        }
+        
+        lines += `<line x1="${xA}" y1="${yA}" x2="${xB}" y2="${yB}" stroke="${color}" stroke-width="${isPath||isAvailable?4:2}" stroke-dasharray="${isPath?'none':'6,6'}" />`;
+      });
+    });
+  }
+  svg.innerHTML = lines;
 }
 
 function selectNode(floor,ni){
   if(floor!==state.currentFloor) return;
+  if(floor>0 && !state.map[floor-1][state.currentNode].next.includes(ni)) return;
+
+  state.currentNode = ni;
+  state.pathHistory[floor] = ni;
   const node=state.map[floor][ni];
   switch(node.type){
     case 'battle':case 'boss':case 'elite':startBattle(node.type, node.bg);break;
     case 'event':startEvent();break;
     case 'rest':startRest();break;
+    case 'treasure':startTreasure();break;
   }
 }
 
@@ -833,7 +964,35 @@ function startRest(){
   let healAmt=Math.min(baseHeal,state.playerMaxHP-state.playerHP);
   healAmt += ((saveData.upgrades.heal_boost||0) * 2);
   const ov=el('overlay');
-  ov.innerHTML=`<div class="rest-box"><h2>🏕️ 休憩所</h2><div class="sub">焚き火で体を休める</div><div class="event-choices"><button class="obtn primary" onclick="doRest(${healAmt})">休む（HP+${healAmt}）</button><button class="obtn" onclick="afterEvent()">すぐ出発</button></div></div>`;
+  let h = `<div class="rest-box"><h2>🏕️ 休憩所</h2><div class="sub">焚き火で何をしようか？</div><div class="event-choices">`;
+  h += `<button class="obtn primary" onclick="doRest(${healAmt})">休む（HP+${healAmt}）</button>`;
+  
+  const upgradeable=state.deck.filter(c=>!c.upgraded&&CARD_DEFS[c.defKey].up);
+  if(upgradeable.length > 0){
+    h += `<button class="obtn primary" onclick="doRestUpgrade()">鍛練（カードを強化）</button>`;
+  }
+  
+  h += `<button class="obtn" onclick="afterEvent()">すぐ出発</button></div></div>`;
+  ov.innerHTML = h;
+  ov.style.display='flex';
+}
+function doRestUpgrade(){
+  showUpgradeUI();
+}
+
+function startTreasure(){
+  state.gamePhase='treasure';el('map-view').classList.add('hide');
+  const ov=el('overlay');
+  
+  const avail=RELIC_DEFS.filter(r=>!hasRelic(r.id) && !(['vamp_fang','barricade','spinning_top'].includes(r.id) && !saveData.unlocked.includes(r.id)));
+  let rText = '宝箱は空だった...';
+  if(avail.length>0){ 
+    const r=pick(avail); state.relics.push(r); 
+    rText=`遺物「${r.name}」を獲得！`; 
+    addLog(rText, 'buf');
+  }
+  
+  ov.innerHTML=`<h1>🧰 宝箱</h1><div class="sub">中には遺物が入っていた！<br>${rText}</div><button class="obtn primary" onclick="afterEvent()">続行</button>`;
   ov.style.display='flex';
 }
 function doRest(amt){
@@ -957,7 +1116,7 @@ function initGame(){
   state.energy=state.maxEnergy=3;state.hand=[];state.discardPile=[];
   state.isPlayerTurn=false;state.enemyStatus={poison:0,weak:0};
   state.playerStatus={poison:0};state.enemyIntent=null;state.turnCount=0;
-  state.currentFloor=0;state.relics=[];state.currentEnemy=null;state.handSize=5;
+  state.currentFloor=0;state.currentNode=0;state.pathHistory=[];state.relics=[];state.currentEnemy=null;state.handSize=5;
   
   // アセンション適用
   if(saveData.maxAscension >= 5){

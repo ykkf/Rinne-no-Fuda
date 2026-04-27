@@ -37,7 +37,9 @@ body.battle-bg::after{opacity:.35}
 .map-node.elite .n-icon{text-shadow:0 0 15px rgba(244,63,94,.8)}
 @media (hover: hover){ .map-node.elite:hover:not(.done):not(.locked){box-shadow:0 0 25px rgba(244,63,94,.6);transform:scale(1.1)} }
 .map-node .n-icon{font-size:1.4rem}.map-node .n-label{font-size:.7rem;color:var(--dim);margin-top:.3rem}
-.map-connector{width:2px;height:20px;background:linear-gradient(to bottom,rgba(56,189,248,.2),rgba(129,140,248,.2));margin:0 auto}
+.map-node.current-path{border-color:var(--success);box-shadow:0 0 15px rgba(16,185,129,.3)}
+.map-connector{display:none;}
+.map-container{position:relative; width:100%; max-width:500px; margin:0 auto; padding: 2rem 0;}
 
 /* Battle */
 #battle-view{flex:1;display:flex;flex-direction:column;gap:.8rem}
